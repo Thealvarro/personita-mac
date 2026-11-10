@@ -1,0 +1,30 @@
+Personita Mac
+Copyright (C) 2026 Álvaro Cofré (SICS) - https://alvarocofre.dev
+
+Este programa es software libre: puedes redistribuirlo y modificarlo bajo los
+términos de la Licencia Pública General de GNU, versión 3 o, a tu elección,
+cualquier versión posterior (GPL-3.0-or-later). El texto completo está en el
+archivo LICENSE.
+
+Este programa se distribuye con la esperanza de que sea útil, pero SIN
+NINGUNA GARANTÍA, ni siquiera la garantía implícita de comerciabilidad o de
+idoneidad para un propósito particular.
+
+Términos adicionales (sección 7, letras b y c, de la GPLv3)
+
+Las versiones modificadas de este programa deben:
+
+  1. conservar los avisos de autoría de este archivo,
+  2. mantener visible en la interfaz el crédito "Desarrollado por SICS", y
+  3. indicar de forma razonable que fueron modificadas y que no son la
+     versión original.
+
+Arte
+
+La personita (el arte en pixel que se mueve en la barra) es parte del
+proyecto y se distribuye bajo la misma licencia que el resto del código.
+
+Marcas
+
+"Claude" y "Claude Code" son marcas de Anthropic. Este proyecto es
+independiente: no tiene afiliación con Anthropic ni cuenta con su respaldo.
