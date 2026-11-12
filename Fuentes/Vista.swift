@@ -37,6 +37,8 @@ final class Estado: ObservableObject {
         }
     }
     @Published var tenue = false
+    // Barra escondida con un aviso nuevo sin atender: la lengüeta queda coral y parpadea hasta que se abra.
+    @Published var avisando = false
     @Published var escondida = UserDefaults.standard.bool(forKey: "escondida")
     var alCambiar: (_ animado: Bool) -> Void = { _ in }
     // El mouse entra o sale de un proyecto (para mostrar su nombre completo).
@@ -49,6 +51,7 @@ final class Estado: ObservableObject {
     }
     private var firma: String?
     private var reloj: Timer?
+    private var parpadeoContinuo: Timer?
     // Archivo de la app de Claude de cada sesión sin ver y su última fecha de modificación conocida.
     private var rutasSinVer: [String: (ruta: URL, fecha: Date?)] = [:]
     // No leídas según el Local Storage de Claude (nil: no se pudo leer y manda la heurística) y la firma de sus archivos.
@@ -88,9 +91,8 @@ final class Estado: ObservableObject {
         if hayNuevo { emisor?.marcarNuevo() }
         avisos = lista
         if hayNuevo {
-            parpadear()
-            // Con un aviso nuevo la barra se abre sola.
-            if escondida { return DispatchQueue.main.async { self.alternar() } }
+            // Escondida no se abre sola: la lengüeta avisa hasta que el dueño la abra.
+            if escondida { avisar() } else { parpadear() }
         }
         DispatchQueue.main.async { self.alCambiar(false) }
     }
@@ -139,8 +141,21 @@ final class Estado: ObservableObject {
         }
     }
 
+    // Parpadeo calmado y continuo de la lengüeta; si ya está parpadeando sigue con el mismo temporizador.
+    private func avisar() {
+        avisando = true
+        guard parpadeoContinuo == nil else { return }
+        parpadeoContinuo = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.tenue.toggle()
+        }
+    }
+
     func alternar() {
         fijada = false
+        avisando = false
+        parpadeoContinuo?.invalidate()
+        parpadeoContinuo = nil
+        tenue = false
         escondida.toggle()
         // Los títulos se refrescan al terminar el deslizamiento: leerlos demora y trabaría el comienzo.
         if !escondida {
@@ -208,7 +223,7 @@ struct Raiz: View {
     }
 
     private var lengueta: some View {
-        let marcada = estado.escondida && !estado.sinVer.isEmpty
+        let marcada = estado.escondida && (!estado.sinVer.isEmpty || estado.avisando)
         return Image(systemName: estado.escondida ? "chevron.left" : "chevron.right")
             .font(.system(size: 12, weight: .semibold))
             .foregroundColor(.white)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.0 - 2026-11-12
+
+- con la barra escondida, un aviso nuevo ya no la abre: la flecha se pone naranja y parpadea hasta que la abras
+
 ## 1.0.0 - 2026-11-10
 
 Primera versión pública.
