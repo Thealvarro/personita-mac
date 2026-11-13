@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 - 2026-11-13
+
+- nueva opción con clic derecho, "Abrirse sola con cada aviso": con la barra escondida, un aviso nuevo la abre sola como antes (apagada por defecto)
+
 ## 1.1.0 - 2026-11-12
 
 - con la barra escondida, un aviso nuevo ya no la abre: la flecha se pone naranja y parpadea hasta que la abras

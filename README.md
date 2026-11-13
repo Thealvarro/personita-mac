@@ -15,7 +15,7 @@ Arriba va un cuadro con la última sesión y una personita de pixel art que se m
 
 De cada sesión se muestra el título y, en letra chica, la carpeta del proyecto. Si el nombre se corta, déjale el mouse encima y aparece completo al costado.
 
-La barra se puede esconder y queda solo una flecha en el borde. Se esconde sola cuando sacas el mouse (salvo que hayas hecho clic en una sesión, caso en que se queda abierta hasta que aprietes la flecha) y si llega un aviso nuevo mientras está escondida no se abre, la flecha se pone naranja y parpadea hasta que la aprietes. Clic derecho sobre la barra para salir.
+La barra se puede esconder y queda solo una flecha en el borde. Se esconde sola cuando sacas el mouse (salvo que hayas hecho clic en una sesión, caso en que se queda abierta hasta que aprietes la flecha) y si llega un aviso nuevo mientras está escondida no se abre, la flecha se pone naranja y parpadea hasta que la aprietes (si prefieres que se abra sola con cada aviso, márcalo con clic derecho, "Abrirse sola con cada aviso"). Clic derecho sobre la barra para salir.
 
 ## Requisitos
 

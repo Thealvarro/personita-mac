@@ -40,6 +40,10 @@ final class Estado: ObservableObject {
     // Barra escondida con un aviso nuevo sin atender: la lengüeta queda coral y parpadea hasta que se abra.
     @Published var avisando = false
     @Published var escondida = UserDefaults.standard.bool(forKey: "escondida")
+    // Elegida en el menú del clic derecho: escondida y con un aviso nuevo, la barra se abre sola en vez de solo avisar con la lengüeta.
+    @Published var abrirSola = UserDefaults.standard.bool(forKey: "abrirSola") {
+        didSet { UserDefaults.standard.set(abrirSola, forKey: "abrirSola") }
+    }
     var alCambiar: (_ animado: Bool) -> Void = { _ in }
     // El mouse entra o sale de un proyecto (para mostrar su nombre completo).
     var alPasar: (_ aviso: Aviso, _ dentro: Bool) -> Void = { _, _ in }
@@ -91,8 +95,11 @@ final class Estado: ObservableObject {
         if hayNuevo { emisor?.marcarNuevo() }
         avisos = lista
         if hayNuevo {
-            // Escondida no se abre sola: la lengüeta avisa hasta que el dueño la abra.
-            if escondida { avisar() } else { parpadear() }
+            // Escondida y sin "abrirse sola", la lengüeta avisa hasta que el dueño la abra.
+            if escondida && !abrirSola { avisar() } else {
+                if escondida { alternar() }
+                parpadear()
+            }
         }
         DispatchQueue.main.async { self.alCambiar(false) }
     }
@@ -217,6 +224,8 @@ struct Raiz: View {
         })
         .contextMenu {
             Button("Desarrollado por SICS") { NSWorkspace.shared.open(URL(string: "https://alvarocofre.dev")!) }
+            Divider()
+            Toggle("Abrirse sola con cada aviso", isOn: $estado.abrirSola)
             Divider()
             Button("Salir de Personita") { NSApp.terminate(nil) }
         }
