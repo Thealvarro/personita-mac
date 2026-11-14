@@ -1,17 +1,21 @@
 # Personita Mac
 
-Una barra flotante pegada al borde derecho de la pantalla que muestra qué sesiones de Claude Code terminaron o están esperando una respuesta tuya. Está pensada para quien trabaja con varias sesiones a la vez en la app de escritorio de Claude y pierde el hilo de cuál terminó primero.
+Una barra flotante pegada al borde derecho de la pantalla que muestra qué sesiones de Claude Code están trabajando, terminaron o están esperando una respuesta tuya. Está pensada para quien trabaja con varias sesiones a la vez en la app de escritorio de Claude y pierde el hilo de cuál terminó primero.
 
 ![La barra de Personita con cinco sesiones de ejemplo](docs/barra.png)
 
-Arriba va un cuadro con la última sesión y una personita de pixel art que se mueve; abajo, las anteriores. Un clic en cualquiera la abre en la app de Claude.
+Arriba va un cuadro con la última sesión (dice "Trabajando" si está en eso) y una personita de pixel art que se mueve; abajo, las anteriores. Un clic en cualquiera la abre en la app de Claude.
 
 ## Qué significa cada color
 
+- **Celeste**: la sesión está trabajando. Lleva un punto que late y la palabra "trabajando" en vez de la hora; si pasan 15 minutos sin actividad deja de marcarse.
 - **Naranja**: la sesión terminó y todavía no la has abierto.
 - **Amarillo**: Claude te está esperando, porque pidió un permiso o te hizo una pregunta.
 - **Un punto en la fila**: sesión sin ver. Es naranja si terminó y azul si te está esperando.
 - **Sin color de fondo**: ya la viste o no hay nada pendiente.
+- **Fondo más claro con una rayita blanca**: es la sesión que tienes abierta ahora en la app de Claude (si no está en la lista, no se muestra).
+
+Las sesiones activas (trabajando, esperando respuesta o sin ver) van primero y se ven todas, sin tope. Después van las terminadas y ya vistas, que solo completan hasta 6 filas y salen de la lista a las 12 horas. Lo que sale no se borra: vuelve solo cuando esa sesión trabaja o avisa de nuevo.
 
 De cada sesión se muestra el título y, en letra chica, la carpeta del proyecto. Si el nombre se corta, déjale el mouse encima y aparece completo al costado.
 
@@ -33,7 +37,7 @@ cd personita-mac
 ./instalar.sh
 ```
 
-El instalador compila la app en tu Mac (no se distribuye ningún binario), la deja en `~/Applications/Personita.app`, copia el script del hook a `~/.claude/personita-mac/aviso-mac.py` y agrega sus hooks a `~/.claude/settings.json`. Antes de tocar ese archivo hace un respaldo, `settings.json.respaldo-personita-<fecha>`, y no modifica los hooks que ya tengas.
+El instalador compila la app en tu Mac (no se distribuye ningún binario), la deja en `~/Applications/Personita.app`, copia el script del hook a `~/.claude/personita-mac/aviso-mac.py` y agrega sus hooks a `~/.claude/settings.json`. Antes de tocar ese archivo hace un respaldo, `settings.json.respaldo-personita-<fecha>`, y no modifica los hooks que ya tengas. Si actualizas desde una versión anterior, vuelve a correr `./instalar.sh` para que tome el script del hook nuevo.
 
 La app no tiene ícono en el Dock ni en la barra de menú. Si ya hay una abierta, la segunda se cierra sola.
 
@@ -47,7 +51,7 @@ Quita la app, el script y los hooks que agregó el instalador.
 
 ## Cómo funciona
 
-Los hooks de Claude Code llaman a `aviso-mac.py`, que anota cada evento en `~/.claude/personita-mac/avisos.jsonl` (carpeta con permiso 700, archivo con 600, máximo 200 líneas). La app lee ese archivo cada segundo. Cada línea trae un tipo: `termino` (terminó), `espera` (pidió permiso o terminó con una pregunta) o `respondio` (ya le contestaste, y el amarillo se apaga).
+Los hooks de Claude Code llaman a `aviso-mac.py`, que anota cada evento en `~/.claude/personita-mac/avisos.jsonl` (carpeta con permiso 700, archivo con 600, máximo 200 líneas). La app lee ese archivo cada segundo. Además, mientras una sesión trabaja deja una marca vacía en `~/.claude/personita-mac/trabajando/` y la borra al terminar. Cada línea trae un tipo: `termino` (terminó), `espera` (pidió permiso o terminó con una pregunta) o `respondio` (ya le contestaste, y el amarillo se apaga).
 
 Para los títulos, la carpeta y saber qué sesiones no has leído, la app lee dos cosas que son internas de la app de escritorio de Claude, siempre en solo lectura:
 

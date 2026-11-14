@@ -52,6 +52,11 @@ final class Delegado: NSObject, NSApplicationDelegate {
         anfitrion = Anfitrion(rootView: Raiz(estado: estado, alMedir: { [weak self] tam in
             guard let self, tam != self.medido else { return }
             self.medido = tam
+            // Si no cabe en el alto de la pantalla, se saca la última fila y se vuelve a medir, hasta que quepa.
+            if let pantalla = NSScreen.screens.first, tam.height > pantalla.visibleFrame.height, self.estado.visibles.count > 1 {
+                let menos = self.estado.visibles.count - 1
+                DispatchQueue.main.async { self.estado.tope = menos }
+            }
             self.ubicar(animado: false)
         }))
         ventana.contentView?.addSubview(anfitrion)
@@ -62,6 +67,8 @@ final class Delegado: NSObject, NSApplicationDelegate {
         estado.alCambiar = { [weak self] animado in self?.ubicar(animado: animado) }
         estado.alPasar = { [weak self] aviso, dentro in self?.pasar(aviso, dentro: dentro) }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            // Con otra pantalla se vuelve a probar con todas las filas.
+            self?.estado.tope = nil
             self?.ubicar(animado: false)
         }
         estado.arrancar()

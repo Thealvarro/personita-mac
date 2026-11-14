@@ -9,6 +9,9 @@
 #     Si la herramienta es wrap_up de la app de escritorio, su campo ask es la pregunta al usuario:
 #     deja (o quita) una marca vacía en ~/.claude/personita-mac/pregunta/<session_id> y nada más.
 #     El stop siguiente la lee (cuenta como pregunta) y la borra; un UserPromptSubmit también la borra.
+#     En todo sigue (UserPromptSubmit y cada PostToolUse) la sesión está trabajando: deja una marca vacía en
+#     ~/.claude/personita-mac/trabajando/<session_id> o le sube la fecha; el stop la borra. espera no la toca.
+#     La barra la da por vieja a los 15 minutos (si se cortó con Esc no llega stop).
 # Las sesiones que esperan tienen un archivo vacío en ~/.claude/personita-mac/esperando/<session_id>.
 # Nunca falla ni demora al hook: cualquier error termina en silencio.
 import json, os, re, sys, time
@@ -34,7 +37,19 @@ def main():
     carpeta = os.path.expanduser("~/.claude/personita-mac")
     marca = os.path.join(carpeta, "esperando", sesion)
     pregunta = os.path.join(carpeta, "pregunta", sesion)
+    trabajando = os.path.join(carpeta, "trabajando", sesion)
+    if evento == "stop" and os.path.exists(trabajando):
+        os.remove(trabajando)
     if evento == "sigue":
+        # Barato: si la marca ya existe solo se le sube la fecha.
+        try:
+            os.utime(trabajando)
+        except FileNotFoundError:
+            os.makedirs(carpeta, mode=0o700, exist_ok=True)
+            os.chmod(carpeta, 0o700)
+            os.makedirs(os.path.dirname(trabajando), mode=0o700, exist_ok=True)
+            os.chmod(os.path.dirname(trabajando), 0o700)
+            os.close(os.open(trabajando, os.O_WRONLY | os.O_CREAT, 0o600))
         herramienta = datos.get("tool_name")
         if herramienta == "mcp__ccd_turn__wrap_up":
             entrada = datos.get("tool_input")

@@ -40,9 +40,9 @@ func escribir(_ lineas: [String]) -> URL {
 let a = reconstruir(leerAvisos(ruta: escribir([linea("A", uA, 100), linea("B", uB, 200), linea("A", uA, 300)])))
 revisar(a.map(\.proyecto) == ["A", "B"] && a[0].hora.timeIntervalSince1970 == 300, "A, B, A -> [A, B] con hora 300 para A")
 
-// (b) máximo 6
-let b = reconstruir(leerAvisos(ruta: escribir((1...9).map { linea("P\($0)", "00000000-0000-4000-8000-00000000000\($0)", $0) })))
-revisar(b.map(\.proyecto) == ["P9", "P8", "P7", "P6", "P5", "P4"], "máximo 6, el más nuevo primero")
+// (b) máximo 30 al leer (el recorte visible lo hace ordenPantalla)
+let b = reconstruir(leerAvisos(ruta: escribir((1...35).map { linea("P\($0)", String(format: "00000000-0000-4000-8000-%012d", $0), $0) })))
+revisar(b.count == 30 && b.first?.proyecto == "P35" && b.last?.proyecto == "P6", "máximo 30, el más nuevo primero")
 
 // (c) líneas inválidas ignoradas
 let c = leerAvisos(ruta: escribir([
@@ -276,6 +276,62 @@ revisar(calcularSinVer([uA], noLeidas: [], antes: conExtra, despues: conExtra, s
 sesL.focos = focos
 revisar(calcularSinVer([], noLeidas: nil, antes: [], despues: lista1, sesiones: sesL) == sinVerTras([], antes: [], despues: lista1, focos: focos) && calcularSinVer([], noLeidas: nil, antes: [], despues: lista1, sesiones: sesL) == [uA, uC], "con nil se usa la heurística")
 revisar(!hayAvisoNuevo(antes: baseL, despues: conExtra) && !hayAvisoNuevo(antes: conExtra, despues: baseL), "filas extra no son aviso nuevo")
+
+// Trabajando: marcas en disco, vigencia de 15 minutos, prioridad y sesiones fuera de la lista
+let dirTr = base.appendingPathComponent("trabajando")
+try! FileManager.default.createDirectory(at: dirTr, withIntermediateDirectories: true)
+for nombre in [uA, uB, "no-es-uuid"] { FileManager.default.createFile(atPath: dirTr.appendingPathComponent(nombre).path, contents: nil) }
+try! FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -16 * 60)], ofItemAtPath: dirTr.appendingPathComponent(uB).path)
+let marcasTr = leerMarcasTrabajando(directorio: dirTr)
+revisar(Set(marcasTr.keys) == [uA, uB], "trabajando: solo marcas con nombre UUID")
+revisar(sesionesTrabajando(marcasTr, ahora: Date()) == [uA], "trabajando: marca fresca cuenta, la de más de 15 min no")
+revisar(leerMarcasTrabajando(directorio: base.appendingPathComponent("no-existe")).isEmpty, "trabajando: sin carpeta no hay marcas")
+revisar(sesionesTrabajando([uA: h(1000)], ahora: h(1000 + 14 * 60 + 59)) == [uA] && sesionesTrabajando([uA: h(1000)], ahora: h(1000 + 15 * 60)) == [], "trabajando: el corte es a los 15 minutos justos")
+let avE = Aviso(proyecto: "e", sesion: uA, hora: h(1), tipo: .espera), avT = Aviso(proyecto: "t", sesion: uB, hora: h(1))
+revisar(estadoFila(avE, trabajando: [uA], sinVer: [uA]) == .esperando, "prioridad: esperando gana a trabajando y sin ver")
+revisar(estadoFila(avT, trabajando: [uB], sinVer: [uB]) == .trabajando, "prioridad: trabajando gana a sin ver")
+revisar(estadoFila(avT, trabajando: [], sinVer: [uB]) == .sinVer && estadoFila(avT, trabajando: [uA], sinVer: []) == .normal, "prioridad: sin ver y normal")
+var sesTr = Sesiones()
+sesTr.ids = [uA: "local_a", uB: "local_b", uC: "local_c", uD: "local_d", uE: "local_a"]
+sesTr.porId = ["local_a": Aviso(proyecto: "a", sesion: uA, hora: h(10)), "local_c": Aviso(proyecto: "c", sesion: uC, hora: h(300), titulo: "Tc", carpeta: "cc"), "local_d": Aviso(proyecto: "d", sesion: uD, hora: h(500))]
+let listaTr = [Aviso(proyecto: "A", sesion: uA, hora: h(1000))]
+let extrasTr = extrasTrabajando(listaTr, trabajando: [uA, uB, uC, uD, uE], sesiones: sesTr)
+revisar(extrasTr.map(\.sesion) == [uD, uC], "trabajando fuera de la lista va al final, de más nueva a más vieja; sin archivo o ya en la lista no")
+revisar(extrasTr.last?.titulo == "Tc" && extrasTr.last?.carpeta == "cc" && extrasTr.last?.tipo == .termino, "trabajando fuera de la lista lleva título y carpeta")
+revisar(extrasTrabajando(listaTr, trabajando: [], sesiones: sesTr).isEmpty && extrasTrabajando(listaTr, trabajando: [uA], sesiones: sesTr).isEmpty, "sin trabajando fuera de la lista, no hay filas extra")
+
+// Orden de pantalla: activas sin tope, normales completan hasta 6 y salen pasadas las 12 horas
+let ahoraP = h(100_000)
+func uP(_ i: Int) -> String { String(format: "99999999-0000-4000-8000-%012d", i) }
+func avP(_ i: Int, _ hora: Date, tipo: Tipo = .termino) -> Aviso { Aviso(proyecto: "p\(i)", sesion: uP(i), hora: hora, tipo: tipo) }
+let ochoActivas = (1...8).map { avP($0, h(99_000 - Double($0)), tipo: $0 <= 3 ? .espera : .termino) }
+let normalesP = (11...20).map { avP($0, h(99_500 - Double($0))) }
+let trabP: Set<String> = [uP(4), uP(5)], sinVerP: Set<String> = [uP(6), uP(7), uP(8)]
+let pant8 = ordenPantalla(ochoActivas + normalesP, trabajando: trabP, sinVer: sinVerP, ahora: ahoraP)
+revisar(pant8.map(\.sesion) == (1...8).map(uP), "pantalla: 8 activas se muestran las 8 y ninguna normal")
+let pant2 = ordenPantalla(normalesP + [avP(1, h(90_000), tipo: .espera), avP(2, h(80_000))], trabajando: [], sinVer: [uP(2)], ahora: ahoraP)
+revisar(pant2.map(\.sesion) == [uP(1), uP(2), uP(11), uP(12), uP(13), uP(14)], "pantalla: 2 activas + 10 normales muestran 2 + 4, activas antes que normales")
+let vieja = avP(30, h(100_000 - 12 * 3600 - 1)), justa = avP(31, h(100_000 - 12 * 3600)), activaVieja = avP(32, h(1), tipo: .espera)
+revisar(ordenPantalla([vieja], trabajando: [], sinVer: [], ahora: ahoraP).isEmpty, "pantalla: normal de más de 12 h no aparece")
+revisar(ordenPantalla([activaVieja, vieja], trabajando: [], sinVer: [], ahora: ahoraP) == [activaVieja], "pantalla: activa de más de 12 h sí aparece")
+revisar(ordenPantalla([justa, vieja], trabajando: [], sinVer: [], ahora: ahoraP) == [justa], "pantalla: corte justo en 12 h (12 h exactas se ve, un segundo más no)")
+revisar(ordenPantalla([vieja], trabajando: [uP(30)], sinVer: [], ahora: ahoraP) == [vieja] && ordenPantalla([vieja], trabajando: [], sinVer: [uP(30)], ahora: ahoraP) == [vieja], "pantalla: trabajando o sin ver vieja vuelve a aparecer")
+let mezcla = [avP(1, h(99_000)), avP(2, h(99_100)), avP(3, h(98_000), tipo: .espera), avP(4, h(99_200))]
+revisar(ordenPantalla(mezcla, trabajando: [uP(1)], sinVer: [], ahora: ahoraP).map(\.sesion) == [uP(1), uP(3), uP(4), uP(2)], "pantalla: activas por hora sin ordenar por tipo, normales después por hora")
+revisar(ordenPantalla([], trabajando: [uA], sinVer: [uB], ahora: ahoraP).isEmpty, "pantalla: lista vacía")
+// Una normal que empieza a trabajar sube en pantalla, pero la lista base (la que decide el aviso nuevo) no cambia.
+let antesP = ordenPantalla(mezcla, trabajando: [], sinVer: [], ahora: ahoraP), despuesP = ordenPantalla(mezcla, trabajando: [uP(1)], sinVer: [], ahora: ahoraP)
+revisar(antesP.first != despuesP.first && !hayAvisoNuevo(antes: mezcla, despues: mezcla), "pantalla: reordenar no cuenta como aviso nuevo")
+
+// Fila actual: la sesión con el foco más reciente, solo si está en las filas
+let filasA = [avP(1, h(99_000)), avP(2, h(98_000)), avP(3, h(97_000))]
+let idsA = [uP(1): "local_1", uP(2): "local_2", uP(3): "local_3", uP(4): "local_2", uP(9): "local_9"]
+revisar(filaActual(filasA, focos: [uP(1): h(10), uP(2): h(30), uP(3): h(20)], ids: idsA) == uP(2), "actual: la de foco más reciente, en la lista")
+revisar(filaActual(filasA, focos: [uP(1): h(10), uP(2): h(30), uP(9): h(40)], ids: idsA) == nil, "actual: la de foco más reciente no está en la lista, nada")
+revisar(filaActual([avP(4, h(99_000)), avP(1, h(98_000))], focos: [uP(1): h(10), uP(2): h(30), uP(4): h(30)], ids: idsA) == uP(4), "actual: sesión con dos ids del CLI cuenta una vez y resalta la fila que está")
+revisar(filaActual(filasA, focos: [:], ids: idsA) == nil, "actual: sin focos, nada")
+revisar(filaActual(filasA, focos: [uP(1): h(30), uP(3): h(30), uP(2): h(10)], ids: idsA) == nil, "actual: empate entre dos sesiones, nada")
+revisar(filaActual(filasA, focos: [uP(9): h(5)], ids: idsA) == nil && filaActual(filasA, focos: [uP(1): h(5)], ids: idsA) == uP(1), "actual: filas sin foco no ganan; la única con foco sí")
 
 // Receptor: funciones puras
 let claveFalsa = "clave-falsa-de-prueba-1234"

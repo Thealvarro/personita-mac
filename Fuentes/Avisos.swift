@@ -52,9 +52,10 @@ func leerAvisos(ruta: URL = rutaAvisos) -> [Aviso] {
     }
 }
 
-// El aviso nuevo sube arriba; si la sesión ya estaba, su fila anterior se elimina. Máximo 6.
+// El aviso nuevo sube arriba; si la sesión ya estaba, su fila anterior se elimina. Máximo 30: el recorte
+// de lo que se ve lo hace ordenPantalla, así una activa antigua no se pierde.
 func agregar(_ nuevo: Aviso, a lista: [Aviso]) -> [Aviso] {
-    Array(([nuevo] + lista.filter { $0.sesion != nuevo.sesion }).prefix(6))
+    Array(([nuevo] + lista.filter { $0.sesion != nuevo.sesion }).prefix(30))
 }
 
 // Un respondio apaga el esperando de su sesión sin moverla ni cambiarle la hora.
@@ -111,4 +112,74 @@ func conNoLeidas(_ lista: [Aviso], noLeidas: Set<String>?, sesiones: Sesiones) -
 func calcularSinVer(_ sinVer: Set<String>, noLeidas: Set<String>?, antes: [Aviso], despues: [Aviso], sesiones: Sesiones) -> Set<String> {
     guard let noLeidas else { return sinVerTras(sinVer, antes: antes, despues: despues, focos: sesiones.focos) }
     return Set(despues.filter { sesiones.ids[$0.sesion].map(noLeidas.contains) ?? false }.map(\.sesion))
+}
+
+// Sesiones trabajando: el hook deja un archivo vacío por sesión en trabajando/ y le sube la fecha en cada paso.
+// PERSONITA_TRABAJANDO cambia la carpeta (solo para pruebas).
+let dirTrabajando = ProcessInfo.processInfo.environment["PERSONITA_TRABAJANDO"].map { URL(fileURLWithPath: $0) }
+    ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/personita-mac/trabajando")
+
+// Una marca sin tocar por 15 minutos ya no cuenta (si se cortó con Esc nunca llega stop).
+let vigenciaTrabajando: TimeInterval = 15 * 60
+
+// Las marcas con su fecha de modificación; solo nombres con forma de UUID.
+func leerMarcasTrabajando(directorio: URL = dirTrabajando) -> [String: Date] {
+    guard let nombres = try? FileManager.default.contentsOfDirectory(atPath: directorio.path) else { return [:] }
+    var marcas: [String: Date] = [:]
+    for nombre in nombres where calza(nombre, patronUUID) {
+        if let fecha = (try? FileManager.default.attributesOfItem(atPath: directorio.appendingPathComponent(nombre).path))?[.modificationDate] as? Date {
+            marcas[nombre] = fecha
+        }
+    }
+    return marcas
+}
+
+// Trabajando: marca con menos de 15 minutos.
+func sesionesTrabajando(_ marcas: [String: Date], ahora: Date) -> Set<String> {
+    Set(marcas.filter { ahora.timeIntervalSince($0.value) < vigenciaTrabajando }.keys)
+}
+
+// Las que trabajan y no están en la lista van al final, de más nueva a más vieja, armadas desde su archivo
+// de la app de Claude; si no se puede resolver, se omiten.
+func extrasTrabajando(_ lista: [Aviso], trabajando: Set<String>, sesiones: Sesiones) -> [Aviso] {
+    // Una sesión de la app puede tener dos ids del CLI: si ya está en la lista (o ya se agregó), no se repite.
+    var vistas = Set(lista.compactMap { sesiones.ids[$0.sesion] })
+    let extra = trabajando.subtracting(lista.map(\.sesion)).compactMap { id -> (sessionId: String, aviso: Aviso)? in
+        guard let sessionId = sesiones.ids[id], let a = sesiones.porId[sessionId] else { return nil }
+        return (sessionId, Aviso(proyecto: a.proyecto, sesion: id, hora: a.hora, titulo: a.titulo, carpeta: a.carpeta))
+    }.sorted { $0.aviso.hora != $1.aviso.hora ? $0.aviso.hora > $1.aviso.hora : $0.aviso.sesion < $1.aviso.sesion }
+    return extra.filter { vistas.insert($0.sessionId).inserted }.map(\.aviso)
+}
+
+// Cómo se pinta una fila: esperando > trabajando > sin ver > normal.
+enum EstadoFila: Equatable {
+    case esperando, trabajando, sinVer, normal
+}
+
+func estadoFila(_ aviso: Aviso, trabajando: Set<String>, sinVer: Set<String>) -> EstadoFila {
+    if aviso.esperando { return .esperando }
+    if trabajando.contains(aviso.sesion) { return .trabajando }
+    return sinVer.contains(aviso.sesion) ? .sinVer : .normal
+}
+
+// Lo que se ve: las activas (esperando, trabajando o sin ver) siempre y sin tope; después las normales, que solo
+// completan hasta 6 filas y salen si su último aviso tiene más de 12 horas. Cada grupo, de más nueva a más vieja.
+func ordenPantalla(_ lista: [Aviso], trabajando: Set<String>, sinVer: Set<String>, ahora: Date) -> [Aviso] {
+    // Orden estable por hora: a igual hora se respeta el orden de la lista.
+    let porHora = lista.enumerated().sorted { $0.element.hora != $1.element.hora ? $0.element.hora > $1.element.hora : $0.offset < $1.offset }.map(\.element)
+    let activas = porHora.filter { estadoFila($0, trabajando: trabajando, sinVer: sinVer) != .normal }
+    let normales = porHora.filter { estadoFila($0, trabajando: trabajando, sinVer: sinVer) == .normal && ahora.timeIntervalSince($0.hora) <= 12 * 3600 }
+    return activas + normales.prefix(max(0, 6 - activas.count))
+}
+
+// La fila de la sesión que el dueño tiene abierta en Claude: la de foco (lastFocusedAt) más reciente. Los focos
+// e ids vienen por id del CLI; los dos ids de una misma sesión de la app cuentan como una. Si esa sesión no está
+// en las filas, si dos sesiones empatan o si no hay focos, ninguna.
+func filaActual(_ filas: [Aviso], focos: [String: Date], ids: [String: String]) -> String? {
+    var porSesion: [String: Date] = [:]
+    for (id, foco) in focos { porSesion[ids[id] ?? id] = max(porSesion[ids[id] ?? id] ?? foco, foco) }
+    guard let mayor = porSesion.values.max() else { return nil }
+    let primeras = porSesion.filter { $0.value == mayor }
+    guard primeras.count == 1, let actual = primeras.first?.key else { return nil }
+    return filas.first { (ids[$0.sesion] ?? $0.sesion) == actual }?.sesion
 }

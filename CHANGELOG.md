@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 - 2026-11-14
+
+- las sesiones que están trabajando se marcan con un punto celeste que late y la palabra "trabajando" en lugar de la hora, y el cuadro de arriba dice "Trabajando"
+- el hook deja una marca por sesión en `~/.claude/personita-mac/trabajando/` y la barra la da por vieja a los 15 minutos sin actividad, por si se corta el turno y nunca llega el aviso de término
+- orden nuevo de la lista: primero las activas (trabajando, esperando respuesta o sin ver), todas y sin tope; después las terminadas y ya vistas, que solo completan hasta 6 filas y salen de la lista a las 12 horas
+- lo que sale de la lista no se borra y vuelve solo cuando la sesión trabaja o avisa de nuevo
+- la fila de la sesión que tienes abierta en la app de Claude queda resaltada con un fondo más claro y una rayita blanca; si no está en la lista, no se muestra
+- al actualizar hay que volver a correr `./instalar.sh` para que tome el script del hook nuevo
+
 ## 1.2.0 - 2026-11-13
 
 - nueva opción con clic derecho, "Abrirse sola con cada aviso": con la barra escondida, un aviso nuevo la abre sola como antes (apagada por defecto)
