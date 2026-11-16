@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 - 2026-11-15
+
+- personaje nuevo: el monito del panel de arriba ahora es un avatar de pixel art más detallado y más grande
+- cambia de gesto según el estado: saluda con un globo de exclamación cuando Claude te está esperando, teclea sobre un teclado cuando hay una sesión trabajando, y se duerme apoyado en una almohada, con zetas, cuando el último aviso tiene más de 30 minutos o no hay avisos; en reposo pestañea
+- el panel de arriba quedó reordenado: el texto va al lado del monito ocupando su altura, el nombre de la sesión admite hasta tres líneas, y cuando te está esperando la línea de abajo dice "desde las HH:mm"
+- arreglo: una fila cuya sesión fue borrada (ya no existe su transcripción en `~/.claude/projects`) sale sola de la lista; antes podía quedar pegada para siempre en "te está esperando" y al hacer clic no abría nada
+- esa revisión se hace cuando llega un aviso y cuando abres la barra
+
 ## 1.3.0 - 2026-11-14
 
 - las sesiones que están trabajando se marcan con un punto celeste que late y la palabra "trabajando" en lugar de la hora, y el cuadro de arriba dice "Trabajando"

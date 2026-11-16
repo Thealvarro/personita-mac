@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Álvaro Cofré (SICS) - alvarocofre.dev
-// Pruebas de lógica: se compila junto a Avisos.swift, AbrirSesion.swift, Receptor.swift, Emisor.swift y NoLeidas.swift (ver Pruebas/probar.sh).
+// Pruebas de lógica: se compila junto a Avisos.swift, AbrirSesion.swift, Receptor.swift, Emisor.swift, NoLeidas.swift y Monito.swift (ver Pruebas/probar.sh).
 // Uso: Pruebas <carpeta temporal>
 import Foundation
 import Network
@@ -300,6 +300,18 @@ revisar(extrasTr.map(\.sesion) == [uD, uC], "trabajando fuera de la lista va al 
 revisar(extrasTr.last?.titulo == "Tc" && extrasTr.last?.carpeta == "cc" && extrasTr.last?.tipo == .termino, "trabajando fuera de la lista lleva título y carpeta")
 revisar(extrasTrabajando(listaTr, trabajando: [], sesiones: sesTr).isEmpty && extrasTrabajando(listaTr, trabajando: [uA], sesiones: sesTr).isEmpty, "sin trabajando fuera de la lista, no hay filas extra")
 
+// Sesiones borradas: sin transcripción en projects/ la fila sale; sin carpeta legible no sale nada
+let dirPr = base.appendingPathComponent("projects")
+for carpeta in ["-p1", "-p2"] { try! FileManager.default.createDirectory(at: dirPr.appendingPathComponent(carpeta), withIntermediateDirectories: true) }
+for ruta in ["-p1/\(uA).jsonl", "-p2/\(uB).jsonl", "-p2/\(uC).json", "-p2/no-es-uuid.jsonl", "\(uD).jsonl"] { FileManager.default.createFile(atPath: dirPr.appendingPathComponent(ruta).path, contents: nil) }
+let existentesPr = leerTranscripciones(directorio: dirPr)
+revisar(existentesPr == [uA, uB], "borradas: solo .jsonl con nombre UUID dentro de las carpetas de proyecto")
+revisar(leerTranscripciones(directorio: base.appendingPathComponent("no-existe")) == nil, "borradas: sin carpeta projects no hay conjunto")
+let listaPr = [Aviso(proyecto: "a", sesion: uA, hora: h(1)), Aviso(proyecto: "c", sesion: uC, hora: h(2), tipo: .espera), Aviso(proyecto: "b", sesion: uB, hora: h(3))]
+revisar(sinBorradas(listaPr, existentes: existentesPr).map(\.sesion) == [uA, uB], "borradas: la fila en espera sin transcripción sale, el resto queda en orden")
+revisar(sinBorradas(listaPr, existentes: nil) == listaPr, "borradas: sin conjunto la lista queda igual")
+revisar(ordenPantalla(sinBorradas(listaPr, existentes: existentesPr), trabajando: [], sinVer: [], ahora: h(10)).map(\.sesion) == [uB, uA], "borradas: la espera borrada no queda pegada en pantalla")
+
 // Orden de pantalla: activas sin tope, normales completan hasta 6 y salen pasadas las 12 horas
 let ahoraP = h(100_000)
 func uP(_ i: Int) -> String { String(format: "99999999-0000-4000-8000-%012d", i) }
@@ -332,6 +344,41 @@ revisar(filaActual([avP(4, h(99_000)), avP(1, h(98_000))], focos: [uP(1): h(10),
 revisar(filaActual(filasA, focos: [:], ids: idsA) == nil, "actual: sin focos, nada")
 revisar(filaActual(filasA, focos: [uP(1): h(30), uP(3): h(30), uP(2): h(10)], ids: idsA) == nil, "actual: empate entre dos sesiones, nada")
 revisar(filaActual(filasA, focos: [uP(9): h(5)], ids: idsA) == nil && filaActual(filasA, focos: [uP(1): h(5)], ids: idsA) == uP(1), "actual: filas sin foco no ganan; la única con foco sí")
+
+// Sprites: grilla de 30 x 52, letras de la paleta, bordes libres para el balanceo y pupilas dentro del lente
+revisar(Sprites.quieta.count == 52 && Sprites.quieta.allSatisfy { $0.count == 30 }, "sprites: 52 filas de 30 columnas")
+revisar(Sprites.quieta.joined().allSatisfy { $0 == "." || Sprites.paleta[$0] != nil }, "sprites: toda letra está en la paleta")
+revisar(Set((Sprites.quieta + Sprites.sueno.flatMap(Sprites.cuadro)).joined()).subtracting(["."]) == Set(Sprites.paleta.keys), "sprites: la paleta no tiene colores sin usar (la sombra de la almohada solo sale al dormir)")
+let pixeles = { (g: [String]) in g.joined().filter { $0 != "." }.count }
+let posesSec = Sprites.secuencia.map(\.0)
+revisar(posesSec.filter { $0.cuerpo == 0 }.allSatisfy { p in Sprites.cuadro(p).allSatisfy { Array($0)[0] == "." && Array($0)[25] == "." } }, "sprites: sin balanceo, las columnas 0 y 25 quedan vacías")
+revisar(posesSec.filter { !$0.cerrados }.allSatisfy { Sprites.cuadro($0).count == 52 && Sprites.cuadro($0).allSatisfy { $0.count == 30 } && pixeles(Sprites.cuadro($0)) == pixeles(Sprites.quieta) }, "sprites: ninguna pose de la secuencia corta pixeles del dibujo")
+revisar([-1, 0, 1].allSatisfy { d in Sprites.cuadro(Pose(ojos: d)).enumerated().filter { Sprites.filasOjos.contains($0.offset) }.allSatisfy { _, fila in
+    let c = Array(fila)
+    return [9, 15, 17, 21].allSatisfy { c[$0] == "n" } && (10..<15).filter { c[$0] == "K" } == [13 + d] && (18..<21).filter { c[$0] == "K" } == [19 + d]
+} }, "sprites: con ojos ±1 las pupilas quedan dentro del lente y el marco no se toca")
+
+// Gestos: todos los cuadros con filas del mismo ancho y letras de la paleta; el estado elige el gesto
+let todasPoses = posesSec + Sprites.saludo + Sprites.tecleo + Sprites.sueno
+revisar(todasPoses.allSatisfy { p in let g = Sprites.cuadro(p); return g.count == 52 && g.allSatisfy { $0.count == 30 } }, "gestos: todos los cuadros miden 30 x 52")
+revisar(todasPoses.allSatisfy { Sprites.cuadro($0).joined().allSatisfy { $0 == "." || Sprites.paleta[$0] != nil } }, "gestos: toda letra de todo cuadro está en la paleta")
+revisar(Sprites.saludo.count == 2 && Sprites.tecleo.count == 2 && Set(Sprites.saludo.map(Sprites.cuadro)).count == 2 && Set(Sprites.tecleo.map(Sprites.cuadro)).count == 2, "gestos: saludo y tecleo tienen dos cuadros distintos")
+revisar(Sprites.sueno.count == 3 && Set(Sprites.sueno.map(Sprites.cuadro)).count == 3 && Sprites.sueno.allSatisfy { $0.cerrados && $0.cuerpo == 0 && $0.ojos == 0 }, "gestos: duerme con tres cuadros distintos, ojos cerrados y sin balanceo")
+revisar(Sprites.sueno.allSatisfy { $0.cabeza == 1 } && (posesSec + Sprites.saludo + Sprites.tecleo).allSatisfy { $0.cabeza == 0 } && Sprites.filasGorra.allSatisfy { Sprites.quieta[$0].last == "." }, "gestos: solo al dormir ladea la gorra hacia la almohada, sin cortarla")
+revisar(Sprites.saludo.allSatisfy { $0.parches.contains(Sprites.globo) } && Sprites.tecleo.allSatisfy { $0.parches.first == Sprites.teclado } && Sprites.sueno.allSatisfy { $0.parches.first == Sprites.almohada }, "gestos: cada gesto lleva su artefacto (globo, teclado, almohada)")
+revisar(todasPoses.allSatisfy { $0.parches.allSatisfy { p in p.fila >= 0 && p.columna >= 0 && p.fila + p.filas.count <= 52 && p.filas.allSatisfy { p.columna + $0.count <= 30 } } }, "gestos: ningún parche se sale de la grilla")
+revisar(posesSec.filter(\.cerrados).count == 2 && Sprites.cuadro(Pose(cerrados: true)) != Sprites.quieta, "gestos: el reposo pestañea dos veces")
+revisar(Sprites.tecleo.allSatisfy { p in let g = Sprites.cuadro(p).map(Array.init); return g[21][13] == "K" && g[21][19] == "K" && g[18][13] != "K" }, "gestos: al teclear mira abajo")
+revisar([nil, 60, 3600].allSatisfy { a in Gesto(esperando: true, trabajando: true, antiguedad: a) == .saluda && Gesto(esperando: true, trabajando: false, antiguedad: a) == .saluda }, "gestos: esperando saluda, aunque trabaje o sea viejo")
+revisar([nil, 60, 3600].allSatisfy { Gesto(esperando: false, trabajando: true, antiguedad: $0) == .teclea }, "gestos: trabajando teclea, aunque el aviso sea viejo")
+revisar(Gesto(esperando: false, trabajando: false, antiguedad: 0) == .reposo && Gesto(esperando: false, trabajando: false, antiguedad: 30 * 60) == .reposo, "gestos: con aviso de 30 minutos o menos, reposo")
+revisar(Gesto(esperando: false, trabajando: false, antiguedad: 30 * 60 + 1) == .duerme && Gesto(esperando: false, trabajando: false, antiguedad: nil) == .duerme, "gestos: con aviso de más de 30 minutos o sin avisos, duerme")
+let t0 = Date(timeIntervalSinceReferenceDate: 1000)
+revisar(Sprites.pose(en: t0, gesto: .saluda) == Sprites.saludo[0] && Sprites.pose(en: t0 + 0.25, gesto: .saluda) == Sprites.saludo[0] && Sprites.pose(en: t0 + 0.5, gesto: .saluda) == Sprites.saludo[1], "gestos: la mano del saludo cambia cada 0,5 s")
+revisar(Sprites.pose(en: t0, gesto: .teclea) == Sprites.tecleo[0] && Sprites.pose(en: t0 + 0.25, gesto: .teclea) == Sprites.tecleo[1], "gestos: el tecleo cambia cada 0,25 s")
+let t1 = Date(timeIntervalSinceReferenceDate: 1200.4)  // a mitad de un paso de 0,8 s y al comienzo del ciclo
+revisar(Sprites.pose(en: t1, gesto: .duerme) == Sprites.sueno[0] && Sprites.pose(en: t1 + 0.35, gesto: .duerme) == Sprites.sueno[0] && Sprites.pose(en: t1 + 0.8, gesto: .duerme) == Sprites.sueno[1] && Sprites.pose(en: t1 + 1.6, gesto: .duerme) == Sprites.sueno[2] && Sprites.pose(en: t1 + 2.4, gesto: .duerme) == Sprites.sueno[0], "gestos: las zetas cambian cada 0,8 s en ciclo de tres")
+revisar(Sprites.pose(en: t0) == Sprites.pose(en: t0, gesto: .reposo), "gestos: sin gesto, reposo")
 
 // Receptor: funciones puras
 let claveFalsa = "clave-falsa-de-prueba-1234"

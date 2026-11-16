@@ -151,6 +151,30 @@ func extrasTrabajando(_ lista: [Aviso], trabajando: Set<String>, sesiones: Sesio
     return extra.filter { vistas.insert($0.sessionId).inserted }.map(\.aviso)
 }
 
+// Transcripciones de Claude Code: ~/.claude/projects/<carpeta>/<sesion>.jsonl. Si la sesión se borra, su archivo
+// se va. PERSONITA_PROYECTOS cambia la carpeta (solo para pruebas).
+let dirProyectos = ProcessInfo.processInfo.environment["PERSONITA_PROYECTOS"].map { URL(fileURLWithPath: $0) }
+    ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects")
+
+// Las sesiones con transcripción (solo nombres con forma de UUID). nil si la carpeta no se puede leer.
+func leerTranscripciones(directorio: URL = dirProyectos) -> Set<String>? {
+    guard let carpetas = try? FileManager.default.contentsOfDirectory(atPath: directorio.path) else { return nil }
+    var ids: Set<String> = []
+    for carpeta in carpetas {
+        for nombre in (try? FileManager.default.contentsOfDirectory(atPath: directorio.appendingPathComponent(carpeta).path)) ?? [] where nombre.hasSuffix(".jsonl") {
+            let id = String(nombre.dropLast(6))
+            if calza(id, patronUUID) { ids.insert(id) }
+        }
+    }
+    return ids
+}
+
+// Saca las filas cuya sesión ya no tiene transcripción (se borró). Sin conjunto (nil), la lista queda igual.
+func sinBorradas(_ lista: [Aviso], existentes: Set<String>?) -> [Aviso] {
+    guard let existentes else { return lista }
+    return lista.filter { existentes.contains($0.sesion) }
+}
+
 // Cómo se pinta una fila: esperando > trabajando > sin ver > normal.
 enum EstadoFila: Equatable {
     case esperando, trabajando, sinVer, normal

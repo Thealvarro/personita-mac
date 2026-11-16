@@ -4,7 +4,7 @@ Una barra flotante pegada al borde derecho de la pantalla que muestra qué sesio
 
 ![La barra de Personita con cinco sesiones de ejemplo](docs/barra.png)
 
-Arriba va un cuadro con la última sesión (dice "Trabajando" si está en eso) y una personita de pixel art que se mueve; abajo, las anteriores. Un clic en cualquiera la abre en la app de Claude.
+Arriba va un cuadro con la última sesión (dice "Trabajando" si está en eso, y "desde las HH:mm" si te está esperando) y, al lado, una personita de pixel art que cambia de gesto según el estado: saluda con un globo de exclamación cuando Claude te está esperando, teclea cuando hay una sesión trabajando, y se duerme sobre una almohada, con zetas, si el último aviso tiene más de 30 minutos o no hay avisos. En reposo pestañea. El nombre de la sesión admite hasta tres líneas. Abajo van las anteriores. Un clic en cualquiera la abre en la app de Claude.
 
 ## Qué significa cada color
 
@@ -15,7 +15,7 @@ Arriba va un cuadro con la última sesión (dice "Trabajando" si está en eso) y
 - **Sin color de fondo**: ya la viste o no hay nada pendiente.
 - **Fondo más claro con una rayita blanca**: es la sesión que tienes abierta ahora en la app de Claude (si no está en la lista, no se muestra).
 
-Las sesiones activas (trabajando, esperando respuesta o sin ver) van primero y se ven todas, sin tope. Después van las terminadas y ya vistas, que solo completan hasta 6 filas y salen de la lista a las 12 horas. Lo que sale no se borra: vuelve solo cuando esa sesión trabaja o avisa de nuevo.
+Las sesiones activas (trabajando, esperando respuesta o sin ver) van primero y se ven todas, sin tope. Después van las terminadas y ya vistas, que solo completan hasta 6 filas y salen de la lista a las 12 horas. Lo que sale no se borra: vuelve solo cuando esa sesión trabaja o avisa de nuevo. La excepción es una sesión que borraste (ya no existe su transcripción en `~/.claude/projects`): esa fila sale sola de la lista, y se revisa cuando llega un aviso y cuando abres la barra.
 
 De cada sesión se muestra el título y, en letra chica, la carpeta del proyecto. Si el nombre se corta, déjale el mouse encima y aparece completo al costado.
 

@@ -89,6 +89,8 @@ final class Estado: ObservableObject {
     // para releer solo el foco de los que cambian.
     private var sesionesFoco = Sesiones()
     private var fechasFoco: [String: Date] = [:]
+    // Sesiones con transcripción (nil: no se pudo leer y no se saca nada); se lee al cambiar la lista y al abrir la barra.
+    private var existentes: Set<String>?
 
     // Lee el archivo al partir (sin parpadear ni abrir la barra) y lo revisa cada segundo por tamaño y fecha.
     func arrancar() {
@@ -107,7 +109,7 @@ final class Estado: ObservableObject {
     // Recalcula el orden de pantalla; si cambió, la barra se reacomoda y el iPad recibe la lista nueva.
     // Cambiar de lugar o salir por antigüedad no toca la lista base, así que no cuenta como aviso nuevo.
     private func ordenar() {
-        let nuevas = ordenPantalla(avisos + extras, trabajando: trabajando, sinVer: sinVer, ahora: Date())
+        let nuevas = ordenPantalla(sinBorradas(avisos, existentes: existentes) + extras, trabajando: trabajando, sinVer: sinVer, ahora: Date())
         guard nuevas != filas else { return }
         filas = nuevas
         tope = nil
@@ -154,6 +156,7 @@ final class Estado: ObservableObject {
             if let ruta = sesiones.rutas[sesion] { rutasSinVer[sesion] = (ruta, fechaModificacion(ruta)) }
         }
         if hayNuevo { emisor?.marcarNuevo() }
+        existentes = leerTranscripciones()
         avisos = lista
         ponerExtras(sesiones)
         if hayNuevo {
@@ -267,6 +270,8 @@ final class Estado: ObservableObject {
                 guard let self, !self.escondida else { return }
                 let lista = self.conTitulos(self.avisos)
                 if lista != self.avisos { self.avisos = lista }
+                self.existentes = leerTranscripciones()
+                self.ordenar()
                 self.revisarTrabajando()
                 self.revisarActual()
             }
@@ -381,43 +386,55 @@ struct Raiz: View {
         // Amarillo mientras Claude espera al dueño; el coral de la sesión sin ver va por encima.
         let amarillento = !marcado && ultimo?.esperando == true
         let fondo = marcado ? (encimaCuadro ? coralEncima : coral) : amarillento ? (encimaCuadro ? amarilloEncima : amarillo) : (encimaCuadro ? azulCuadroEncima : azulCuadro)
-        return HStack(spacing: 4) {
+        // El texto va al lado del monito y ocupa toda su altura: arriba rótulo, carpeta y nombre; abajo, a la altura de los pies, la hora.
+        return HStack(alignment: .top, spacing: 4) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(ultimo?.esperando == true ? "Te está esperando" : trabajando ? "Trabajando" : "Último terminado")
                     .font(.system(size: 11))
                     .foregroundColor(marcado ? .white : (amarillento ? azul : celeste))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let carpeta = ultimo?.carpetaVisible {
+                    Text(verbatim: carpeta)
+                        .font(.system(size: 11))
+                        .foregroundColor((marcado ? Color.white : (amarillento ? azul : celeste)).opacity(0.75))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 if let ultimo {
-                    if let carpeta = ultimo.carpetaVisible {
-                        Text(verbatim: carpeta)
-                            .font(.system(size: 11))
-                            .foregroundColor((marcado ? Color.white : (amarillento ? azul : celeste)).opacity(0.75))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
                     Text(verbatim: ultimo.nombre)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(amarillento ? azul : .white)
-                        .lineLimit(2)
+                        .lineLimit(3)
                         .minimumScaleFactor(0.85)
                         .truncationMode(.tail)
-                    Text(ultimo.esperando ? "te está esperando · \(formatoHora.string(from: ultimo.hora))" : trabajando ? "trabajando" : "terminó a las \(formatoHora.string(from: ultimo.hora))")
+                }
+                Spacer(minLength: 0)
+                if let ultimo {
+                    // Esperando, el rótulo ya lo dice: la última línea solo lleva desde cuándo, para que quepa en una línea.
+                    Text(ultimo.esperando ? "desde las \(formatoHora.string(from: ultimo.hora))" : trabajando ? "trabajando" : "terminó a las \(formatoHora.string(from: ultimo.hora))")
                         .font(.system(size: 12))
                         .foregroundColor(marcado ? .white : (amarillento ? azul : Color(rgb: 0xe9eaed)))
-                        // "te está esperando · HH:mm" no cabe junto al monito: se achica un poco en vez de saltar de línea.
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 } else {
                     Text("Sin avisos todavía")
                         .font(.system(size: 12))
                         .foregroundColor(Color(rgb: 0xe9eaed))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Se mueve solo con la barra abierta; escondida, la línea de tiempo queda en pausa.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            // Se mueve solo con la barra abierta; escondida, la línea de tiempo queda en pausa. El gesto se calcula en cada
+            // tick: saluda si Claude espera, teclea si trabaja, duerme si el último aviso pasó los 30 min y si no, reposa.
             TimelineView(.animation(minimumInterval: Sprites.paso, paused: estado.escondida)) { linea in
-                Monito(pose: poseFija ?? Sprites.pose(en: linea.date))
+                let gesto = Gesto(esperando: ultimo?.esperando == true, trabajando: trabajando, antiguedad: ultimo.map { linea.date.timeIntervalSince($0.hora) })
+                Monito(pose: poseFija ?? Sprites.pose(en: linea.date, gesto: gesto))
             }
         }
+        // La columna de texto se estira al alto del monito (o el monito se queda arriba si el texto es más alto).
+        .fixedSize(horizontal: false, vertical: true)
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(fondo))
