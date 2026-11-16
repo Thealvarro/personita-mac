@@ -2,7 +2,7 @@
 
 Una barra flotante pegada al borde derecho de la pantalla que muestra qué sesiones de Claude Code están trabajando, terminaron o están esperando una respuesta tuya. Está pensada para quien trabaja con varias sesiones a la vez en la app de escritorio de Claude y pierde el hilo de cuál terminó primero.
 
-![La barra de Personita con cinco sesiones de ejemplo](docs/barra.png)
+![La barra de Personita con seis sesiones de ejemplo](docs/barra.png)
 
 Arriba va un cuadro con la última sesión (dice "Trabajando" si está en eso, y "desde las HH:mm" si te está esperando) y, al lado, una personita de pixel art que cambia de gesto según el estado: saluda con un globo de exclamación cuando Claude te está esperando, teclea cuando hay una sesión trabajando, y se duerme sobre una almohada, con zetas, si el último aviso tiene más de 30 minutos o no hay avisos. En reposo pestañea. El nombre de la sesión admite hasta tres líneas. Abajo van las anteriores. Un clic en cualquiera la abre en la app de Claude.
 
